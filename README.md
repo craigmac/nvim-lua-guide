@@ -940,11 +940,78 @@ vim.api.nvim_buf_del_keymap(0, 'i', '<Tab>')
 
 ## Defining user commands
 
-There is currently no interface to create user commands in Lua. It is planned, though:
+Note: the API functions discussed in this section are only available in Neovim nightly
 
-- [Pull request #11613](https://github.com/neovim/neovim/pull/11613)
+Neovim provides API functions for user-defined commands:
 
-For the time being, you're probably better off creating commands in Vimscript.
+- Global user commands:
+    - [`vim.api.nvim_add_user_command()`](https://neovim.io/doc/user/api.html#nvim_add_user_command())
+    - [`vim.api.nvim_del_user_command()`](https://neovim.io/doc/user/api.html#nvim_del_user_command())
+- Buffer-local user commands:
+    - [`vim.api.nvim_buf_add_user_command()`](https://neovim.io/doc/user/api.html#nvim_buf_add_user_command())
+    - [`vim.api.nvim_buf_del_user_command()`](https://neovim.io/doc/user/api.html#nvim_buf_del_user_command())
+
+The first argument passed to `vim.api.nvim_add_user_command()` is the name of the command (which must start with an uppercase letter).
+
+The second argument is the code to execute when invoking said command. It can either be:
+
+A string (in which case it will be executed as Vimscript). You can use escape sequences like `<q-args>`, `<range>`, etc. like you would with `:command`
+```lua
+vim.api.nvim_add_user_command('Scream', 'echo toupper(<q-args>)', { nargs = 1 })
+-- :command -nargs=1 Scream echo toupper(<q-args>)
+
+vim.cmd('Scream hello world') -- prints "HELLO WORLD"
+```
+
+Or a Lua function. It receives a dictionary-like table that contains the data normally provided by escape sequences (see `:help vim.api.nvim_add_user_command()` for a list of available keys)
+```lua
+vim.api.nvim_add_user_command(
+    'Scream',
+    function(opts)
+        print(string.upper(opts.args))
+    end,
+    { nargs = 1 }
+)
+```
+
+**TODO**: 3rd argument - command attributes
+**TODO**: passing a Lua function to `complete`
+**TODO**: buffer-local user commands
+**TODO**: deleting a user command
+
+See also:
+- [`vim.api.nvim_add_user_command()`](https://neovim.io/doc/user/api.html#nvim_add_user_command())
+- [`:help 40.2`](https://neovim.io/doc/user/usr_40.html#40.2)
+- [`:help command-attributes`](https://neovim.io/doc/user/map.html#command-attributes)
+
+### Caveats
+
+**TODO**: `complete` with a Lua function always behaves like customlist -> no automatic filtering
+
+The `<args>` and `<f-args>` escape sequences are not available when using a Lua function, the `args` key is always a string containing the arguments passed to the command. If you need to get each argument separately, the string has to be tokenized manually. Keep in mind that the behavior of `<f-args>` is subtely different depending on the `-nargs` attribute.
+
+```vim
+command! -nargs=1 Test1 echo [<f-args>]
+command! -nargs=* Test2 echo [<f-args>]
+
+Test1 this is    a\ test
+" prints `['this is    a\ test']`
+Test2 this is    a\ test
+" prints `['this', 'is', 'a test']`
+```
+The `:Test1` command prints what was typed verbatim while the `:Test2` gets rid of whitespace except when preceded by a backslash `\`.
+
+When using a Lua function, the `nargs` attribute does not change the value of `args`:
+```lua
+vim.api.nvim_add_user_command('Test1', function(opts) print(opts.args) end, { nargs = 1 })
+vim.api.nvim_add_user_command('Test2', function(opts) print(opts.args) end, { nargs = '*' })
+```
+```vim
+Test1 this is    a\ test
+" prints `this is    a\ test`
+Test2 this is    a\ test
+" prints `this is    a\ test`
+```
 
 ## Defining autocommands
 
